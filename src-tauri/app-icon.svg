@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="1024" height="1024" fill="#409EFF" rx="160"/>
+  
+  <!-- 表格网格 -->
+  <g stroke="white" stroke-width="8" fill="none">
+    <rect x="180" y="180" width="664" height="664" rx="20"/>
+    <line x1="400" y1="180" x2="400" y2="844"/>
+    <line x1="620" y1="180" x2="620" y2="844"/>
+    <line x1="180" y1="400" x2="844" y2="400"/>
+    <line x1="180" y1="620" x2="844" y2="620"/>
+  </g>
+  
+  <!-- 高亮单元格 -->
+  <rect x="408" y="408" width="212" height="212" fill="rgba(255,255,255,0.3)" rx="4"/>
+  
+  <!-- 搜索放大镜 -->
+  <g transform="translate(200, 200)" fill="white">
+    <circle cx="80" cy="80" r="50" stroke-width="12" stroke="white" fill="none"/>
+    <line x1="120" y1="120" x2="150" y2="150" stroke-width="12" stroke-linecap="round"/>
+  </g>
+  
+  <!-- 铅笔编辑图标 -->
+  <g transform="translate(650, 650)" fill="white">
+    <path d="M 30 80 L 10 90 L 20 110 Z" fill="white"/>
+    <rect x="30" y="30" width="50" height="50" fill="white" transform="rotate(45 55 55)"/>
+  </g>
+</svg>
