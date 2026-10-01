@@ -8,6 +8,7 @@ use umya_spreadsheet::{reader::xlsx::read, writer::xlsx::write, Workbook};
 pub struct CellChange {
     pub row: u32,
     pub col: u32,
+    #[serde(rename = "newValue")]
     pub new_value: String,
 }
 

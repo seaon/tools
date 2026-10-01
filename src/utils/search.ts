@@ -3,7 +3,7 @@ import type { ExcelRow } from '@/types/excel'
 
 /**
  * 创建 Fuse.js 搜索实例
- * 搜索范围：所有列，阈值 0.4，最多返回 50 条
+ * 搜索范围：所有列，阈值 0.4，最多返回  条
  */
 export function createSearcher(rows: ExcelRow[], headers: string[]) {
   return new Fuse(rows, {
@@ -27,5 +27,5 @@ export function fuzzySearch(
 ): ExcelRow[] {
   if (!keyword.trim()) return []
   const searcher = createSearcher(rows, headers)
-  return searcher.search(keyword).slice(0, 50).map((r) => r.item)
+  return searcher.search(keyword).slice(0, 15).map((r) => r.item)
 }

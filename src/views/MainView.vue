@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import FileSelector from '@/components/FileSelector.vue'
 import SearchBar from '@/components/SearchBar.vue'
-import ResultPicker from '@/components/ResultPicker.vue'
 import EditableRow from '@/components/EditableRow.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import { useExcelStore } from '@/stores/excelStore'
@@ -18,7 +17,6 @@ const excelStore = useExcelStore()
 
     <el-main v-if="!excelStore.isEmpty" class="main-content">
       <SearchBar />
-      <ResultPicker />
       <EditableRow />
     </el-main>
 

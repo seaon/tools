@@ -8,22 +8,30 @@ export interface CellChange {
   newValue: string
 }
 
-/** 完整行数据 */
+/** Rust 端返回的原始行数据 */
+export interface RawExcelRow {
+  row_num: number
+  values: string[]
+}
+
+/** 完整行数据（前端使用，含表头键） */
 export interface ExcelRow {
   /** Excel 中的真实行号（1-based） */
   __rowNum: number
   /** 列名 → 值 */
-  [column: string]: string | number | boolean | null | undefined
+  [column: string]: string | number | boolean | null
 }
 
-/** Excel 文件读取结果 */
+/** Excel 文件读取结果（Rust 端返回格式） */
 export interface ExcelData {
   /** 文件路径 */
   path: string
   /** 工作表名 */
   sheetName: string
-  /** 表头数组（按列顺序） */
+  /** 表头数组（按列顺序，已去重） */
   headers: string[]
   /** 全部数据行 */
-  rows: ExcelRow[]
+  rows: RawExcelRow[]
+  /** 隐藏列（1-based 列号） */
+  hiddenColumns: number[]
 }

@@ -26,7 +26,7 @@ function isDirty(col: string): boolean {
         </div>
       </template>
       <el-form label-position="top" class="row-form">
-        <el-form-item v-for="col in excelStore.headers" :key="col" :label="col">
+        <el-form-item v-for="col in excelStore.visibleHeaders" :key="col" :label="col">
           <div class="cell-wrapper" :class="{ dirty: isDirty(col) }">
             <el-input
               :model-value="String(editStore.selectedRow[col] ?? '')"

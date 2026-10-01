@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::Path;
 use tauri::command;
 use umya_spreadsheet::{reader::xlsx::read, Workbook};
@@ -7,9 +8,12 @@ use umya_spreadsheet::{reader::xlsx::read, Workbook};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExcelData {
     pub path: String,
+    #[serde(rename = "sheetName")]
     pub sheet_name: String,
     pub headers: Vec<String>,
     pub rows: Vec<ExcelRow>,
+    #[serde(rename = "hiddenColumns")]
+    pub hidden_columns: Vec<u32>,
 }
 
 /// 行数据
@@ -19,7 +23,7 @@ pub struct ExcelRow {
     pub values: Vec<String>,
 }
 
-/// 读取 Excel 文件，返回表头 + 全部行数据
+/// 读取 Excel 文件，返回表头 + 全部数据行
 #[command]
 pub fn read_excel(path: String) -> Result<ExcelData, String> {
     let workbook: Workbook = read(Path::new(&path)).map_err(|e| format!("读取文件失败: {}", e))?;
@@ -28,56 +32,75 @@ pub fn read_excel(path: String) -> Result<ExcelData, String> {
         .sheet(0)
         .map_err(|e| format!("找不到工作表: {}", e))?;
 
-    let sheet_name = sheet.get_name().to_string();
+    let sheet_name = sheet.name().to_string();
 
-    // 获取所有单元格，按行列排序
-    let cells = sheet.cells_sorted();
+    // 收集非空行：真实行号 -> 该行列值（列号 1-based 对应数组 0-based）
+    let mut row_map: BTreeMap<u32, Vec<String>> = BTreeMap::new();
 
-    // 获取行维度信息（用于获取真实行号）
-    let row_dims = sheet.row_dimensions();
-
-    // 构建行号 -> 单元格值 的映射
-    let mut row_map: std::collections::BTreeMap<u32, Vec<String>> = std::collections::BTreeMap::new();
-
-    for cell in cells {
+    for cell in sheet.cells() {
         let row_num = cell.coordinate().row_num();
         let col_num = cell.coordinate().col_num();
-        let value = cell.get_value().to_string();
+        let value = cell.value().to_string();
 
-        // 确保行存在
+        // 跳过空单元格，避免把只有格式、没有内容的行计入数据量
+        if value.trim().is_empty() {
+            continue;
+        }
+
         let row_values = row_map.entry(row_num).or_default();
 
-        // 扩展列直到当前列
+        // 补全中间空列，保证列号与数组下标对齐
         while row_values.len() < col_num as usize {
             row_values.push(String::new());
         }
 
-        // 设置值（索引是 0-based，列号是 1-based）
-        if (col_num as usize) <= row_values.len() {
-            row_values[col_num as usize - 1] = value;
-        } else {
-            row_values.push(value);
-        }
+        row_values[col_num as usize - 1] = value;
     }
 
-    // 确定最大列数
+    // 没有数据时直接返回空结果
+    if row_map.is_empty() {
+        return Ok(ExcelData {
+            path,
+            sheet_name,
+            headers: vec![],
+            rows: vec![],
+            hidden_columns: vec![],
+        });
+    }
+
+    // 最大列数（按非空单元格计算，忽略尾部空列）
     let max_cols = row_map.values().map(|v| v.len()).max().unwrap_or(0);
 
-    // 提取表头（第一行数据）
-    let headers = if let Some(first_row) = row_map.values().next() {
-        if first_row.len() >= max_cols {
-            first_row.clone()
-        } else {
-            let mut h = first_row.clone();
-            h.resize(max_cols, String::new());
-            h
-        }
-    } else {
-        (1..=max_cols).map(|i| format!("列{}", i)).collect()
+    // 隐藏列（1-based 列号，仅保留在数据范围内的）
+    let hidden_columns: Vec<u32> = sheet
+        .column_dimensions()
+        .iter()
+        .filter(|c| c.hidden() && c.col_num() >= 1 && c.col_num() <= max_cols as u32)
+        .map(|c| c.col_num())
+        .collect();
+
+    // 表头 = 第一个非空行；空表头补默认列名
+    let raw_headers: Vec<String> = {
+        let first = row_map.values().next().unwrap().clone();
+        let mut h = first;
+        h.resize(max_cols, String::new());
+        h.iter()
+            .enumerate()
+            .map(|(idx, v)| {
+                if v.trim().is_empty() {
+                    format!("列{}", idx + 1)
+                } else {
+                    v.clone()
+                }
+            })
+            .collect()
     };
 
-    // 转换为 ExcelRow（跳过第一行表头）
-    let mut rows: Vec<ExcelRow> = row_map
+    // 同名列去重（追加 (2)/(3)…），避免前端用列名当对象 key 时互相覆盖
+    let headers = make_unique_headers(raw_headers);
+
+    // 数据行 = 跳过表头后的非空行，保留真实行号
+    let rows: Vec<ExcelRow> = row_map
         .into_iter()
         .skip(1)
         .map(|(row_num, mut values)| {
@@ -86,13 +109,54 @@ pub fn read_excel(path: String) -> Result<ExcelData, String> {
         })
         .collect();
 
-    // 确保行按行号排序
-    rows.sort_by_key(|r| r.row_num);
-
     Ok(ExcelData {
         path,
         sheet_name,
         headers,
         rows,
+        hidden_columns,
     })
+}
+
+/// 表头去重：同名列追加 (2)、(3)…，保证前端用列名做对象 key 时不会互相覆盖
+fn make_unique_headers(headers: Vec<String>) -> Vec<String> {
+    use std::collections::HashSet;
+
+    let mut used: HashSet<String> = HashSet::new();
+    headers
+        .into_iter()
+        .map(|h| {
+            if used.insert(h.clone()) {
+                return h;
+            }
+            let mut n = 2;
+            loop {
+                let candidate = format!("{}({})", h, n);
+                if used.insert(candidate.clone()) {
+                    return candidate;
+                }
+                n += 1;
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::make_unique_headers;
+
+    #[test]
+    fn dedups_duplicate_headers() {
+        assert_eq!(
+            make_unique_headers(vec![
+                "备注".to_string(),
+                "名称".to_string(),
+                "备注".to_string(),
+                "备注".to_string(),
+                "备注(2)".to_string(),
+                "备注".to_string(),
+            ]),
+            vec!["备注", "名称", "备注(2)", "备注(3)", "备注(2)(2)", "备注(4)"]
+        );
+    }
 }
