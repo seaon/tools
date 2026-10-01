@@ -24,6 +24,8 @@ bun.lockb
 # rust compiled folders
 target/
 
+dist/
+
 # test video for streaming example
 streaming_example_test_video.mp4
 
